@@ -1,0 +1,63 @@
+#!/bin/bash
+
+#
+# Setup automation script for ReasonML projects.
+#
+
+DEPS=(npm esy)
+
+USE_DUNE=false
+VERBOSE=false
+RUN_TEST_BUILD=false
+
+NAME="ReasonML-Project"
+
+[ $# -eq 0 ] && echo "usage: -n: name, [-d]: use dune, [-b]: run test build, [-v]: verbose" && exit 0
+
+# Get command line options:
+while getopts "dn:vb" c; do
+	case $c in
+		d) USE_DUNE=true;;
+		b) RUN_TEST_BUILD=true;;
+		n) NAME=${OPTARG};;
+		v) VERBOSE=true;;
+		*) ;;
+	esac
+done
+
+# Check dependencies:
+checkdeps() {
+	for d in ${DEPS[@]}; do
+		! hash $d &> /dev/null && {
+			echo "Could find dependency $d. Trying to install..."
+			npm install -g $d && echo "Installed missing dependency" 
+		}
+	done
+}
+
+# Create project:
+create() {
+	# Create directory:
+	[ -d $NAME ] && echo "Error: Project exists!" && exit 1
+	mkdir -p $NAME && $VERBOSE && echo "Created folder $NAME"
+	cd $NAME && $VERBOSE && echo "Moved into $NAME"
+	touch $NAME.ml && $VERBOSE && echo "Created $NAME.ml"
+		
+	# Add base dependencies:
+	npm init
+	esy add ocaml && $VERBOSE && echo "Added oCaml to project"
+	esy install
+
+	# Add dune stuff, if requested:
+	$USE_DUNE && {
+		esy add @opam/dune && $VERBOSE && echo "Added dune to project"
+		touch $NAME.opam && $VERBOSE && echo "Created dune project file"
+		echo "(executable (name $NAME) (public_name $NAME))" > dune && $VERBOSE && echo "Created dune file"
+	}
+
+	# Run a test build, if requested
+	$RUN_TEST_BUILD && esy b dune build && $VERBOSE && echo "Build ran successfully"
+}
+
+checkdeps
+create
